@@ -11,15 +11,13 @@
 #URL to the podcast manifest
 MP_XML="http://www.marketplace.org/node/all/podcast.xml"
 #Root dir for files
-MP_DIR=$(echo ~)"/Music/marketplace"
+MP_DIR=$(echo ~)"/Music/marketplace/"
 #REGEX to identify files
 
 YEAR="[0-9][0-9][0-9][0-9]"
 DAY="[0-3][0-9]"
 MONTH="[0-1][1-9]"
 DATE=${YEAR}${MONTH}${DAY}
-EXT="\.mp3"
-FILE_REGEX="\/${YEAR}\/${MONTH}\/${DAY}\/*${DATE}*${EXT}"
 
 #To find all the url attributes
 URL_REGEX='url=['"'"'"][^"'"'"']*['"'"'"]'
@@ -49,7 +47,8 @@ resetTput=$(tput sgr0)
 #Functions for wrapping echo for color and STDERR
 function echoerr {
     tput setaf 1
-    echo "ERROR: "${@}${restTput} 1>&2
+    echo "ERROR: "${@} 1>&2
+    tput sgr0
 }
 
 function echowarn {
@@ -79,6 +78,8 @@ function parseXML {
 
 #Builds part of the path (after the MP root dir) based on the
 #   file name/date structure
+#Example file:
+#   marketplace_podcast_20140530_64.mp3
 #@param:
 #       $1: file to derive path
 #
@@ -86,7 +87,26 @@ function parseXML {
 #       Path derived from file
 #       "returned" via echo; call by subshell
 function buildPath {
-    echo "Building path..."
+    local file=$1
+    #get the date from the file name
+    local fileDate=$(echo ${file} | grep -o -e ${DATE})
+    local yr_mnth=${fileDate:0:4}"_"${fileDate:4:2}
+    local day=${fileDate:6:2}
+    echo "${yr_mnth}/${day}/"
+}
+
+#Builds part of the path with file name appended at the end
+#Example file:
+#   marketplace_podcast_20140530_64.mp3
+#@param:
+#       $1: file to derive path
+#
+#@return: 
+#       Path derived from file
+#       "returned" via echo; call by subshell
+function buildPathName {
+    local file=$1
+    echo "$(buildPath ${file})${file}"
 }
 
 #Updates the logs to see if the user deleted some files
@@ -96,7 +116,17 @@ function buildPath {
 #
 #@return: 
 function updateLog {
-    echo "Updating logs..."
+    if [[ ! -f ${MP_DIR}${DL_LOG}  ]]; then
+        echowarn "Log file missing. Making new log file now..."
+        #Touch...I remember touch...picture came with touch...
+        touch ${MP_DIR}${DL_LOG}
+    else
+        echo "Updating logs..."
+        local fileList=$(<${MP_DIR}${DL_LOG})
+        for file in "${fileList[@]}"; do
+            echo $file
+        done
+    fi
 }
 
 #Checks to see if the file should be downloaded
@@ -112,11 +142,11 @@ function checkDL {
     local file=$1
     local bool=0
     #Don't download something we already have
-    grep -o -q ${file} ${DL_LOG}
+    grep -o -q ${file} ${MP_DIR}${DL_LOG}
     if [[ $? = 0 ]]; then
         bool=1
     fi
-    grep -o -q ${MRKDEL}${file} ${DL_LOG}
+    grep -o -q ${MRKDEL}${file} ${MP_DIR}${DL_LOG}
     if [[ $? = 0 ]]; then
         bool=2
     fi
@@ -139,12 +169,16 @@ function pullFiles {
         check=$(checkDL ${file})
         case ${check} in
             0)
+                if [[ ! -d ${MP_DIR}$(buildPath ${file}) ]]; then
+                    echowarn "Directory ~/$(buildPath ${file}) does not exist. Making structure now..."
+                    mkdir -p ${MP_DIR}$(buildPath ${file})
+                fi
                 echo "Downloading ${file}..."
-                wget -q -O ${file} ${fileURL[${i}]}
+                wget -q -O ${MP_DIR}$(buildPathName ${file}) ${fileURL[${i}]}
                 if [[ $? = 0 ]]; then
-                    echo ${file} >> ${DL_LOG}
+                    echo ${file} >> ${MP_DIR}${DL_LOG}
                 else
-                    echo ${MRKFAIL} >> ${DL_LOG}
+                    echo ${MRKFAIL} >> ${MP_DIR}${DL_LOG}
                     let errCnt++
                 fi
                 ;;
@@ -168,6 +202,11 @@ function pullFiles {
 
 ####   MAIN    ####
 function main {
+    #Build base directory
+    if [[ ! -d ${MP_DIR} ]]; then
+        echowarn "${MP_DIR} does not exist. Making directory structure now..."
+        mkdir -p ${MP_DIR}
+    fi
     #check if the user
     updateLog
     #look for the latest files
