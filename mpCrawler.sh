@@ -29,6 +29,12 @@ STRIP2='s/["'"'"']$//'
 #Log for what's been downloaded before
 DL_LOG=".mpLog"
 
+#Markings
+#Deletion
+MRKDEL="XXX_"
+#Failed to download
+MRKFAIL="FAIL_"
+
 ####   VARS    ####
 
 fileNames=()
@@ -36,23 +42,69 @@ fileURL=()
 
 #### FUNCTIONS ####
 
+#Functions for wrapping echo for color and STDERR
+resetTput=$(tput sgr0)
+
+function echoerr {
+    tput setaf 1
+    echo ${@}${restTput} 1>&2
+}
+
+function echosucc {
+    tput setaf 2
+    echo ${@}${resetTput}
+}
+
 #Parses podcast manifest into file names and URLs
+#@param:
+#
+#@return: 
+#       fileNames Array of file Names
+#       fileURL Array of file URLs
 function parseXML {
     #Take the xml file, extract the URLs, and put into an array
     fileURL=($(curl -s ${MP_XML} | grep -o -e ${URL_REGEX} \
         | sed -e ${STRIP1} -e ${STRIP2}))
-    echo ${fileURL[1]}
-    #local results=$(echo ${xml} | sed 's/.* url=\"\(.*\)\ .*"/\1/g')
-    #echo ${results}
+    for file in "${fileURL[@]}"; do
+        fileNames+=($(basename "${file}"))
+    done
 }
 
-function pullFiles {
+#Pulls the files from the site, using wget
+#@param:
+#
+#@return: 
+#       fileNames Array of file Names
+#       fileURL Array of file URLs
+function pullFiles { 
+    i=0
+    #count errors
+    errCnt=0
+    #Loop over everything in the podcast manifest and download
+    for file in "${fileNames[@]}"; do
+        echo "Downloading ${file}..."
+        wget -q -O ${file} ${fileURL[${i}]}
+        if [[ $? = 0 ]]; then
+            echo ${file} >> ${DL_LOG}
+        else
+            echo ${MRKFAIL} >> ${DL_LOG}
+            let errCnt++
+        fi
+        let i++
+    done
+    #report back
+    if [[ ${errCnt} = 0 ]]; then
+        echosucc "Updating Completed Successfully"
+    else
+        echoerr "ERROR: ${errCnt} downloads failed"
+    fi
 }
 
 
 ####   MAIN    ####
 function main {
     parseXML
+    pullFiles
 }
 
 main
