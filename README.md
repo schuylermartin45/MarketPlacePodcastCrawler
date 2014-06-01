@@ -4,7 +4,7 @@ The MarketPlace Podcast Crawler
 This project will pull down podcasts from APM's MarketPlace radio show and 
     will store and sort them automatically.
 
-Coupled with Google Drive (or another cloud-based service) the shows can then
+Coupled with DropBox (or another cloud-based service) the shows can then
     been synced up with a mobile device or other platform for listening.
 
 About
