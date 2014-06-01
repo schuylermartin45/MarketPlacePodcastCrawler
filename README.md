@@ -1,5 +1,8 @@
-The MarketPlace Podcast Crawler
-==============================
+The MarketPlace Podcast Crawler*
+================================
+
+*Not actually a "web crawler". While writing the script, I found an xml
+file that stored all the podcast links and decided to use that instead.
 
 This project will pull down podcasts from APM's MarketPlace radio show and 
     will store and sort them automatically.
