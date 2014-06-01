@@ -28,12 +28,11 @@ STRIP2='s/["'"'"']$//'
 
 #Log for what's been downloaded before
 DL_LOG=".mpLog"
+TMPEXT=".tmp"
 
 #Markings
 #Deletion
-MRKDEL="XXX_"
-#Failed to download
-MRKFAIL="FAIL_"
+MRKDEL="XXXX_"
 
 ####   VARS    ####
 
@@ -118,13 +117,37 @@ function buildPathName {
 function updateLog {
     if [[ ! -f ${MP_DIR}${DL_LOG}  ]]; then
         echowarn "Log file missing. Making new log file now..."
-        #Touch...I remember touch...picture came with touch...
+        #Touch...I remember touch...pictures came with touch...
         touch ${MP_DIR}${DL_LOG}
     else
+        #if the log file is empty, attempt to recover to last version
+        if [[ ! -s ${MP_DIR}${DL_LOG} && -f ${MP_DIR}${DL_LOG}${TMPEXT} ]]; then
+            mv ${MP_DIR}${DL_LOG}${TMPEXT} ${MP_DIR}${DL_LOG}
+        fi
         echo "Updating logs..."
-        local fileList=$(<${MP_DIR}${DL_LOG})
+        local fileList=()
+        #read in the file to an array
+        while read line ; do
+            fileList+=(${line})
+        done < ${MP_DIR}${DL_LOG}
+        #change and mark the file names as needed
+        i=0
+        while [ ${i} -lt ${#fileList[@]} ]; do
+            file=${fileList[${i}]}
+            #check if the files have already been marked and handle that
+            if [[ ! ${file:0:5} = ${MRKDEL} ]]; then
+                if [[ ! -f ${MP_DIR}$(buildPathName ${file}) ]]; then
+                    fileList[${i}]=${MRKDEL}${file}
+                fi
+            fi
+            let i++
+        done
+        #back up before wipe
+        mv ${MP_DIR}${DL_LOG} ${MP_DIR}${DL_LOG}${TMPEXT}
+        echo "" > ${MP_DIR}${DL_LOG}
+        #re-build the log file after handling all the files
         for file in "${fileList[@]}"; do
-            echo $file
+            echo ${file} >> ${MP_DIR}${DL_LOG}
         done
     fi
 }
@@ -136,19 +159,20 @@ function updateLog {
 #       $1: file to check
 #
 #@return: 
-#       0 for success; otherwise error code
+#       0 for success (should download); otherwise error code
 #       "returned" via echo; call by subshell
 function checkDL {
     local file=$1
     local bool=0
-    #Don't download something we already have
-    grep -o -q ${file} ${MP_DIR}${DL_LOG}
-    if [[ $? = 0 ]]; then
-        bool=1
-    fi
-    grep -o -q ${MRKDEL}${file} ${MP_DIR}${DL_LOG}
-    if [[ $? = 0 ]]; then
+    local fileDB=$(grep ${file} ${MP_DIR}${DL_LOG})
+    local MRK=${fileDB:0:5}
+    #deletion check
+    if [[ ${MRK} = ${MRKDEL} ]]; then
         bool=2
+    fi
+    #Don't download something we already have
+    if [[ ! -z ${fileDB} ]]; then
+        bool=1
     fi
     echo ${bool}
 }
@@ -166,11 +190,12 @@ function pullFiles {
     echosucc "Starting to pull files from server..."
     #Loop over everything in the podcast manifest and download
     for file in "${fileNames[@]}"; do
+        #echo running
         check=$(checkDL ${file})
         case ${check} in
             0)
                 if [[ ! -d ${MP_DIR}$(buildPath ${file}) ]]; then
-                    echowarn "Directory ~/$(buildPath ${file}) does not exist. Making structure now..."
+                    echowarn "Directory ${MP_DIR}$(buildPath ${file}) does not exist. Making structure now..."
                     mkdir -p ${MP_DIR}$(buildPath ${file})
                 fi
                 echo "Downloading ${file}..."
@@ -178,7 +203,10 @@ function pullFiles {
                 if [[ $? = 0 ]]; then
                     echo ${file} >> ${MP_DIR}${DL_LOG}
                 else
-                    echo ${MRKFAIL} >> ${MP_DIR}${DL_LOG}
+                    #remove any partial files
+                    if [[ -f ${MP_DIR}$(buildPathName ${file}) ]]; then
+                        rm ${MP_DIR}$(buildPathName ${file})
+                    fi
                     let errCnt++
                 fi
                 ;;
