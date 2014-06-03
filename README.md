@@ -23,8 +23,10 @@ Usage
 -----
 
 ```shell
-./mpCrawler.sh
+./mpCrawler.sh [-s]
 ```
+**-s**
+This mode will suppress colorized output (for use in cron jobs)
 
 Run this script either manually or via a cron job to update.
 

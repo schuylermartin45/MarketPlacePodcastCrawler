@@ -34,30 +34,54 @@ TMPEXT=".tmp"
 #Deletion
 MRKDEL="XXXX_"
 
+#Universal value for flags that are "ON"
+ON=1
+
+
+####   FLAGS   ####
+#For Cron jobs, disable tput coloring
+CRON=0
+
 ####   VARS    ####
 
 fileNames=()
 fileURL=()
 
-resetTput=$(tput sgr0)
+#TODO: Add Getopts
+
 
 #### FUNCTIONS ####
 
 #Functions for wrapping echo for color and STDERR
 function echoerr {
-    tput setaf 1
-    echo "ERROR: "${@} 1>&2
-    tput sgr0
+    if [[ ! ${CRON} = ${ON} ]]; then
+        tput setaf 1
+    fi
+    echo "ERROR: "${@} 1>&2 
+    if [[ ! ${CRON} = ${ON} ]]; then
+        tput sgr0
+    fi
 }
 
 function echowarn {
-    tput setaf 3
-    echo "WARNING: "${@}${resetTput}
+    if [[ ! ${CRON} = ${ON} ]]; then
+        tput setaf 3
+    fi
+    echo "WARNING: "${@}
+    if [[ ! ${CRON} = ${ON} ]]; then
+        tput sgr0
+    fi
 }
 
 function echosucc {
-    tput setaf 2
-    echo ${@}${resetTput}
+
+    if [[ ! ${CRON} = ${ON} ]]; then
+        tput setaf 2
+    fi
+    echo ${@}
+    if [[ ! ${CRON} = ${ON} ]]; then
+        tput sgr0
+    fi
 }
 
 #Parses podcast manifest into file names and URLs
@@ -227,6 +251,17 @@ function pullFiles {
     fi
 }
 
+####  GETOPTS  ####
+while getopts ":s" opt; do
+  case $opt in
+    s)
+      CRON=${ON}
+      ;;
+    *)
+      echoerr "Usage: ./mpCrawler.sh [-s]"
+      ;;
+  esac
+done
 
 ####   MAIN    ####
 function main {
